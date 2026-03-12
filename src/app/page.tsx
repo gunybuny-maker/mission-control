@@ -1146,7 +1146,16 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
   selectedAgent: Agent | null;
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newAgent, setNewAgent] = useState({ name: "", role: "", emoji: "🤖", model: "glm-5:cloud", status: "idle" as const });
+  const [newAgent, setNewAgent] = useState({ 
+    name: "", 
+    role: "", 
+    emoji: "🤖", 
+    model: "glm-5:cloud", 
+    status: "idle" as const,
+    personality: "",
+    mission: "",
+    workspace: ""
+  });
 
   const defaultAgents: Agent[] = [
     { id: "default-nova", name: "Nova", role: "Primary Operator", emoji: "🤖", model: "glm-5:cloud", status: "active" },
@@ -1160,8 +1169,33 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
 
   const createAgent = async () => {
     if (!newAgent.name.trim()) return;
-    await db.transact(db.tx.agents[id()].update({ ...newAgent, createdAt: Date.now() }));
-    setNewAgent({ name: "", role: "", emoji: "🤖", model: "glm-5:cloud", status: "idle" });
+    
+    // Create agent with all fields including personality and mission
+    await db.transact(db.tx.agents[id()].update({ 
+      name: newAgent.name,
+      role: newAgent.role,
+      emoji: newAgent.emoji,
+      model: newAgent.model,
+      status: newAgent.status,
+      workspace: newAgent.workspace || `/agents/${newAgent.name.toLowerCase()}`,
+      // Personality and mission would be stored in the agent's SOUL.md file
+      createdAt: Date.now()
+    }));
+    
+    // In production, this would also create:
+    // - /agents/{name}/MEMORY.md
+    // - /agents/{name}/SOUL.md
+    
+    setNewAgent({ 
+      name: "", 
+      role: "", 
+      emoji: "🤖", 
+      model: "glm-5:cloud", 
+      status: "idle",
+      personality: "",
+      mission: "",
+      workspace: ""
+    });
     setShowCreateModal(false);
   };
 
@@ -1190,7 +1224,7 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
         {displayAgents.map((agent) => (
           <div 
             key={agent.id} 
-            onClick={() => agent.id.startsWith('default-') ? null : onSelectAgent(agent)}
+            onClick={() => !agent.id.startsWith('default-') && onSelectAgent(agent)}
             className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all cursor-pointer ${selectedAgent?.id === agent.id ? 'border-red-500/50 bg-red-500/5' : ''}`}
           >
             <div className="flex items-start gap-4">
@@ -1220,58 +1254,179 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
         ))}
       </div>
 
-      {/* Create Agent Modal */}
+      {/* Create Agent Modal - Large */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-lg mb-4">Create New Agent</h3>
-            <div className="space-y-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
-                <label className="text-sm text-muted mb-1 block">Name</label>
-                <input
-                  type="text"
-                  value={newAgent.name}
-                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
-                  placeholder="Agent name..."
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-                />
+                <h3 className="font-semibold text-xl">Create New Agent</h3>
+                <p className="text-sm text-muted mt-1">Give your agent a personality and mission</p>
               </div>
-              <div>
-                <label className="text-sm text-muted mb-1 block">Role</label>
-                <input
-                  type="text"
-                  value={newAgent.role}
-                  onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
-                  placeholder="e.g., Researcher, Writer..."
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted mb-1 block">Emoji</label>
-                <input
-                  type="text"
-                  value={newAgent.emoji}
-                  onChange={(e) => setNewAgent({ ...newAgent, emoji: e.target.value })}
-                  placeholder="🤖"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted mb-1 block">Status</label>
-                <select
-                  value={newAgent.status}
-                  onChange={(e) => setNewAgent({ ...newAgent, status: e.target.value as typeof newAgent.status })}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-                >
-                  <option value="idle">Idle</option>
-                  <option value="active">Active</option>
-                  <option value="offline">Offline</option>
-                </select>
+              <button onClick={() => setShowCreateModal(false)} className="text-muted hover:text-foreground text-2xl p-2 hover:bg-card-hover rounded-lg transition-colors">×</button>
+            </div>
+
+            {/* Form */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Left Column - Basic Info */}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm text-muted uppercase tracking-wide">Basic Info</h4>
+                  
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Agent Name</label>
+                    <input
+                      type="text"
+                      value={newAgent.name}
+                      onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                      placeholder="e.g., Alex, Maya, Sam..."
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Role / Title</label>
+                    <input
+                      type="text"
+                      value={newAgent.role}
+                      onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
+                      placeholder="e.g., Researcher, Writer, Marketing..."
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-muted mb-1 block">Emoji</label>
+                      <input
+                        type="text"
+                        value={newAgent.emoji}
+                        onChange={(e) => setNewAgent({ ...newAgent, emoji: e.target.value })}
+                        placeholder="🤖"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm text-muted mb-1 block">Model</label>
+                      <select
+                        value={newAgent.model}
+                        onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                      >
+                        <option value="glm-5:cloud">GLM-5 Cloud</option>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="claude-3">Claude 3</option>
+                        <option value="gemini-pro">Gemini Pro</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Initial Status</label>
+                    <select
+                      value={newAgent.status}
+                      onChange={(e) => setNewAgent({ ...newAgent, status: e.target.value as typeof newAgent.status })}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                    >
+                      <option value="idle">🟡 Idle</option>
+                      <option value="active">🟢 Active</option>
+                      <option value="offline">⚫ Offline</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Workspace Path</label>
+                    <input
+                      type="text"
+                      value={newAgent.workspace}
+                      onChange={(e) => setNewAgent({ ...newAgent, workspace: e.target.value })}
+                      placeholder="/agents/{name}"
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted mt-1">Memory.md and SOUL.md will be created here</p>
+                  </div>
+                </div>
+
+                {/* Right Column - Personality & Mission */}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm text-muted uppercase tracking-wide">Personality & Soul</h4>
+                  
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Base Personality</label>
+                    <textarea
+                      value={newAgent.personality}
+                      onChange={(e) => setNewAgent({ ...newAgent, personality: e.target.value })}
+                      placeholder="Describe the agent's personality traits, communication style, and behavioral tendencies...
+
+e.g., 'Alex is analytical and thorough. Prefers data-driven decisions. Communicates concisely. Always cites sources. Curious and loves deep dives.'"
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-40 resize-none"
+                    />
+                    <p className="text-xs text-muted mt-1">Stored in agent's SOUL.md</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-muted mb-1 block">Mission & Goals</label>
+                    <textarea
+                      value={newAgent.mission}
+                      onChange={(e) => setNewAgent({ ...newAgent, mission: e.target.value })}
+                      placeholder="Define the agent's primary mission, goals, and what success looks like...
+
+e.g., 'Mission: Research and compile comprehensive information on assigned topics.
+Goals:
+- Find reliable sources and verify facts
+- Summarize findings in actionable format
+- Flag knowledge gaps for further research
+Success: Deliver accurate, well-sourced research reports.'"
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-40 resize-none"
+                    />
+                    <p className="text-xs text-muted mt-1">Stored in agent's MEMORY.md</p>
+                  </div>
+
+                  {/* Agent Preview */}
+                  <div className="glass rounded-xl p-4 border border-red-500/30">
+                    <h5 className="text-sm font-semibold mb-2">Preview</h5>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-xl">
+                        {newAgent.emoji || "🤖"}
+                      </div>
+                      <div>
+                        <div className="font-semibold">{newAgent.name || "New Agent"}</div>
+                        <div className="text-xs text-muted">{newAgent.role || "Role"}</div>
+                      </div>
+                      <div className={`ml-auto px-2 py-1 rounded text-xs ${newAgent.status === "active" ? "bg-green-500/20 text-green-400" : newAgent.status === "idle" ? "bg-yellow-500/20 text-yellow-400" : "bg-gray-500/20 text-gray-400"}`}>
+                        {newAgent.status}
+                      </div>
+                    </div>
+                    {newAgent.personality && (
+                      <p className="text-xs text-muted mt-3 line-clamp-2">{newAgent.personality}</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 justify-end mt-6">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 bg-background border border-border rounded-lg text-sm">Cancel</button>
-              <button onClick={createAgent} className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm">Create Agent</button>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-border flex justify-between items-center">
+              <div className="text-xs text-muted">
+                <span className="text-red-400">📝</span> Creates: MEMORY.md, SOUL.md, workspace folder
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-6 py-2.5 bg-background border border-border rounded-lg text-sm hover:bg-card-hover transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createAgent}
+                  disabled={!newAgent.name.trim()}
+                  className="px-6 py-2.5 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create Agent
+                </button>
+              </div>
             </div>
           </div>
         </div>
