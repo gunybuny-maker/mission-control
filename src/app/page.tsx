@@ -571,7 +571,7 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
@@ -742,7 +742,7 @@ function WorkflowDetailModal({ workflow, agents, onClose }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-card border border-border rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="p-6 border-b border-border flex items-center justify-between">
@@ -1302,7 +1302,7 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
 
       {/* Create Agent Modal - Large */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-4 p-0" onClick={() => setShowCreateModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 md:p-4 p-0" onClick={() => setShowCreateModal(false)}>
           <div className="modal-responsive bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="p-4 md:p-6 border-b border-border flex items-center justify-between">
@@ -1556,7 +1556,7 @@ function WorkflowsPanel({ workflows, agents, onSelectWorkflow }: {
 
       {/* Create Workflow Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
           <div className="bg-card border border-border rounded-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <h3 className="font-semibold text-lg mb-4">Create New Workflow</h3>
             <div className="space-y-4">
