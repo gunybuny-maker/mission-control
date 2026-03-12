@@ -114,10 +114,10 @@ export default function MissionControl() {
       />
       
       {/* Main Content */}
-      <main className={`flex-1 transition-all duration-300 overflow-hidden ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+      <main className={`main-content flex-1 transition-all duration-300 overflow-hidden ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
         <Header />
         
-        <div className="h-[calc(100vh-4rem)] overflow-hidden">
+        <div className="h-[calc(100vh-4rem)] overflow-hidden md:pb-0 pb-16">
           {activeTab === "chat" && <ChatPanel messages={data?.messages || []} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />}
           {activeTab === "tasks" && <TasksPanel tasks={data?.tasks || []} />}
           {activeTab === "knowledge" && <KnowledgePanel knowledge={data?.knowledge || []} />}
@@ -156,7 +156,7 @@ function LoadingScreen() {
   );
 }
 
-// Sidebar
+// Sidebar - Desktop version
 function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }: { 
   activeTab: "chat" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat";
   setActiveTab: (tab: typeof activeTab) => void;
@@ -174,58 +174,93 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }: {
   ];
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-card/50 backdrop-blur-xl border-r border-border transition-all duration-300 z-50 ${collapsed ? 'w-16' : 'w-64'}`}>
-      {/* Logo */}
-      <div className="flex items-center gap-3 h-16 px-4 border-b border-border">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center glow-red-sm shrink-0">
-          <span className="text-lg">🤖</span>
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <h1 className="font-semibold text-sm whitespace-nowrap">Mission Control</h1>
-            <span className="text-xs text-muted whitespace-nowrap">v2.0</span>
+    <>
+      {/* Desktop Sidebar */}
+      <aside className={`sidebar-desktop fixed left-0 top-0 h-screen bg-card/50 backdrop-blur-xl border-r border-border transition-all duration-300 z-50 ${collapsed ? 'w-16' : 'w-64'}`}>
+        {/* Logo */}
+        <div className="flex items-center gap-3 h-16 px-4 border-b border-border">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center glow-red-sm shrink-0">
+            <span className="text-lg">🤖</span>
           </div>
-        )}
-        <button 
-          onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto p-1.5 rounded-lg hover:bg-card-hover text-muted hover:text-foreground transition-colors"
-        >
-          {collapsed ? "→" : "←"}
-        </button>
-      </div>
-
-      {/* Navigation */}
-      <nav className="p-2 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-              activeTab === item.id
-                ? "bg-gradient-to-r from-red-600/20 to-red-800/10 text-red-400 border border-red-600/30"
-                : "text-muted hover:bg-card-hover hover:text-foreground"
-            } ${collapsed ? 'justify-center' : ''}`}
-            title={collapsed ? item.name : undefined}
+          {!collapsed && (
+            <div className="overflow-hidden">
+              <h1 className="font-semibold text-sm whitespace-nowrap">Mission Control</h1>
+              <span className="text-xs text-muted whitespace-nowrap">v2.0</span>
+            </div>
+          )}
+          <button 
+            onClick={() => setCollapsed(!collapsed)}
+            className="ml-auto p-1.5 rounded-lg hover:bg-card-hover text-muted hover:text-foreground transition-colors"
           >
-            <span className="text-lg">{item.icon}</span>
-            {!collapsed && item.name}
+            {collapsed ? "→" : "←"}
           </button>
-        ))}
-      </nav>
-
-      {/* Status */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          {!collapsed && <span>Nova Online</span>}
         </div>
-        {!collapsed && (
-          <div className="text-xs text-muted mt-1">
-            <span className="font-mono">glm-5:cloud</span>
+
+        {/* Navigation */}
+        <nav className="p-2 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
+                activeTab === item.id
+                  ? "bg-gradient-to-r from-red-600/20 to-red-800/10 text-red-400 border border-red-600/30"
+                  : "text-muted hover:bg-card-hover hover:text-foreground"
+              } ${collapsed ? 'justify-center' : ''}`}
+              title={collapsed ? item.name : undefined}
+            >
+              <span className="text-lg">{item.icon}</span>
+              {!collapsed && item.name}
+            </button>
+          ))}
+        </nav>
+
+        {/* Status */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            {!collapsed && <span>Nova Online</span>}
           </div>
-        )}
-      </div>
-    </aside>
+          {!collapsed && (
+            <div className="text-xs text-muted mt-1">
+              <span className="font-mono">glm-5:cloud</span>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="sidebar-mobile fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border z-50 safe-area-bottom">
+        <div className="flex items-center justify-around h-16 px-2">
+          {navItems.slice(0, 5).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-all ${
+                activeTab === item.id
+                  ? "text-red-400"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              <span className="text-xl">{item.icon}</span>
+              <span className="text-[10px] mt-0.5">{item.name.split(' ')[0]}</span>
+            </button>
+          ))}
+          {/* More button */}
+          <button
+            onClick={() => setActiveTab("crons")}
+            className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-all ${
+              activeTab === "crons" || activeTab === "heartbeat"
+                ? "text-red-400"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            <span className="text-xl">⋯</span>
+            <span className="text-[10px] mt-0.5">More</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
 
@@ -337,7 +372,7 @@ function ChatPanel({ messages, selectedAgent, setSelectedAgent }: {
   }, [sortedMessages]);
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       <div className="flex-1 flex flex-col">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -414,7 +449,7 @@ function ChatPanel({ messages, selectedAgent, setSelectedAgent }: {
       </div>
 
       {/* Context Panel with Token Display */}
-      <div className="w-72 border-l border-border bg-card/30 p-4 overflow-y-auto">
+      <div className="hidden md:block w-72 border-l border-border bg-card/30 p-4 overflow-y-auto">
         <h3 className="font-semibold text-sm mb-4">Context</h3>
         
         <div className="space-y-4">
@@ -989,7 +1024,7 @@ function TasksPanel({ tasks }: { tasks: Task[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 flex-1 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 overflow-hidden">
         {columns.map((column) => (
           <div key={column.id} className="flex flex-col bg-card/50 rounded-xl border border-border overflow-hidden"
             onDragOver={(e) => e.preventDefault()}
@@ -1110,7 +1145,7 @@ function KnowledgePanel({ knowledge }: { knowledge: Knowledge[] }) {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4 flex-1 overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto">
         {filteredKnowledge.map((item) => (
           <div key={item.id} className="glass rounded-xl overflow-hidden border border-border hover:border-red-500/30 transition-all">
             <div className={`p-2 bg-gradient-to-r ${getCategoryColor(item.category)}`}>
@@ -1220,7 +1255,7 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 flex-1 overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto">
         {displayAgents.map((agent) => (
           <div 
             key={agent.id} 
@@ -1256,20 +1291,20 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
 
       {/* Create Agent Modal - Large */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-4 p-0" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-responsive bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="p-6 border-b border-border flex items-center justify-between">
+            <div className="p-4 md:p-6 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-xl">Create New Agent</h3>
-                <p className="text-sm text-muted mt-1">Give your agent a personality and mission</p>
+                <h3 className="font-semibold text-lg md:text-xl">Create New Agent</h3>
+                <p className="text-sm text-muted mt-1 hide-mobile">Give your agent a personality and mission</p>
               </div>
               <button onClick={() => setShowCreateModal(false)} className="text-muted hover:text-foreground text-2xl p-2 hover:bg-card-hover rounded-lg transition-colors">×</button>
             </div>
 
             {/* Form */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-2 gap-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {/* Left Column - Basic Info */}
                 <div className="space-y-4">
                   <h4 className="font-semibold text-sm text-muted uppercase tracking-wide">Basic Info</h4>

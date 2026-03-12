@@ -97,3 +97,93 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Mobile responsive breakpoints */
+@media (max-width: 768px) {
+  /* Sidebar becomes bottom navigation */
+  .sidebar-desktop {
+    display: none;
+  }
+  
+  .sidebar-mobile {
+    display: flex;
+  }
+  
+  /* Main content takes full width */
+  .main-content {
+    margin-left: 0 !important;
+    padding-bottom: 80px; /* Space for bottom nav */
+  }
+  
+  /* Grid layouts become single column */
+  .grid-responsive {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Modals become full screen */
+  .modal-responsive {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* Stack panels vertically */
+  .panel-stack {
+    flex-direction: column !important;
+  }
+  
+  /* Full width inputs */
+  .input-mobile {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  /* Smaller text on mobile */
+  .text-mobile {
+    font-size: 0.875rem !important;
+  }
+  
+  /* Hide on mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar-mobile {
+    display: none !important;
+  }
+  
+  .sidebar-desktop {
+    display: block;
+  }
+}
+
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+  .grid-tablet {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Touch-friendly buttons */
+@media (pointer: coarse) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Safe area for notched phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
