@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { useState, useRef, useEffect } from "react";
 import { id } from "@instantdb/react";
+import { OfficeSpace } from "@/components/OfficeSpace";
 
 // Types
 interface Message {
@@ -83,7 +84,7 @@ interface Heartbeat {
 
 // Main App
 export default function MissionControl() {
-  const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "office" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat">("chat");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
@@ -119,6 +120,7 @@ export default function MissionControl() {
         
         <div className="h-[calc(100vh-4rem)] overflow-hidden md:pb-0 pb-16">
           {activeTab === "chat" && <ChatPanel messages={data?.messages || []} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />}
+          {activeTab === "office" && <OfficeSpace agents={data?.agents || []} />}
           {activeTab === "tasks" && <TasksPanel tasks={data?.tasks || []} />}
           {activeTab === "knowledge" && <KnowledgePanel knowledge={data?.knowledge || []} />}
           {activeTab === "agents" && <AgentsPanel agents={data?.agents || []} onSelectAgent={setSelectedAgent} selectedAgent={selectedAgent} />}
@@ -165,6 +167,7 @@ function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }: {
 }) {
   const navItems = [
     { id: "chat" as const, name: "Command Center", icon: "💬" },
+    { id: "office" as const, name: "Office", icon: "🏢" },
     { id: "agents" as const, name: "Agent Network", icon: "🤖" },
     { id: "tasks" as const, name: "Task Control", icon: "📋" },
     { id: "workflows" as const, name: "Workflows", icon: "⚡" },
