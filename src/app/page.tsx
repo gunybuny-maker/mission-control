@@ -49,6 +49,15 @@ interface Workflow {
   lastRun?: number;
   nextRun?: number;
   createdAt: number;
+  agents?: string[]; // agent ids
+  steps?: WorkflowStep[];
+}
+
+interface WorkflowStep {
+  id: string;
+  agentId: string;
+  action: string;
+  order: number;
 }
 
 interface Cron {
@@ -76,6 +85,8 @@ interface Heartbeat {
 export default function MissionControl() {
   const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat">("chat");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   
   // Real-time data from InstantDB
   const { isLoading, data } = db.useQuery({
@@ -107,15 +118,25 @@ export default function MissionControl() {
         <Header />
         
         <div className="h-[calc(100vh-4rem)] overflow-hidden">
-          {activeTab === "chat" && <ChatPanel messages={data?.messages || []} />}
+          {activeTab === "chat" && <ChatPanel messages={data?.messages || []} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />}
           {activeTab === "tasks" && <TasksPanel tasks={data?.tasks || []} />}
           {activeTab === "knowledge" && <KnowledgePanel knowledge={data?.knowledge || []} />}
-          {activeTab === "agents" && <AgentsPanel agents={data?.agents || []} />}
-          {activeTab === "workflows" && <WorkflowsPanel workflows={data?.workflows || []} />}
+          {activeTab === "agents" && <AgentsPanel agents={data?.agents || []} onSelectAgent={setSelectedAgent} selectedAgent={selectedAgent} />}
+          {activeTab === "workflows" && <WorkflowsPanel workflows={data?.workflows || []} agents={data?.agents || []} onSelectWorkflow={setSelectedWorkflow} />}
           {activeTab === "crons" && <CronsPanel crons={data?.crons || []} />}
           {activeTab === "heartbeat" && <HeartbeatPanel heartbeats={data?.heartbeats || []} />}
         </div>
       </main>
+      
+      {/* Agent Detail Modal */}
+      {selectedAgent && !selectedAgent.id.startsWith('default-') && (
+        <AgentDetailModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
+      )}
+      
+      {/* Workflow Detail Modal */}
+      {selectedWorkflow && !selectedWorkflow.id.startsWith('default-') && (
+        <WorkflowDetailModal workflow={selectedWorkflow} agents={data?.agents || []} onClose={() => setSelectedWorkflow(null)} />
+      )}
     </div>
   );
 }
@@ -243,10 +264,15 @@ function Header() {
   );
 }
 
-// Chat Panel
-function ChatPanel({ messages }: { messages: Message[] }) {
+// Chat Panel - Master Control with Nova
+function ChatPanel({ messages, selectedAgent, setSelectedAgent }: { 
+  messages: Message[];
+  selectedAgent: Agent | null;
+  setSelectedAgent: (a: Agent | null) => void;
+}) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [tokens, setTokens] = useState({ used: 0, total: 203000 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -259,6 +285,10 @@ function ChatPanel({ messages }: { messages: Message[] }) {
     setInput("");
     setIsSending(true);
 
+    // Simulate token usage
+    const tokensUsed = messageText.split(' ').length * 2;
+    setTokens(prev => ({ ...prev, used: prev.used + tokensUsed }));
+
     try {
       await db.transact(
         db.tx.messages[id()].update({
@@ -268,16 +298,27 @@ function ChatPanel({ messages }: { messages: Message[] }) {
         })
       );
 
+      // Simulate AI response
       setTimeout(async () => {
+        const responses = [
+          "I understand. Let me process that and get back to you.",
+          "Working on it. I'll coordinate with the agents if needed.",
+          "Got it. I'm analyzing the situation and will provide recommendations.",
+          "Acknowledged. I'll track this in the knowledge vault.",
+          "I've noted this. Would you like me to create a task or workflow for this?",
+        ];
+        
         await db.transact(
           db.tx.messages[id()].update({
             role: "assistant",
-            content: "I received your message. In production, this connects to OpenClaw for real AI responses. Open another tab to see real-time sync working!",
+            content: responses[Math.floor(Math.random() * responses.length)],
             createdAt: Date.now(),
           })
         );
+        
+        setTokens(prev => ({ ...prev, used: prev.used + Math.floor(Math.random() * 100) + 50 }));
         setIsSending(false);
-      }, 500);
+      }, 800);
     } catch (error) {
       console.error("Error sending message:", error);
       setIsSending(false);
@@ -298,6 +339,7 @@ function ChatPanel({ messages }: { messages: Message[] }) {
   return (
     <div className="h-full flex">
       <div className="flex-1 flex flex-col">
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {sortedMessages.length === 0 && (
             <div className="text-center py-12">
@@ -305,7 +347,8 @@ function ChatPanel({ messages }: { messages: Message[] }) {
                 <span className="text-2xl">🤖</span>
               </div>
               <h3 className="text-lg font-semibold text-glow-red">Nova</h3>
-              <p className="text-muted text-sm mt-2">What can I help you with?</p>
+              <p className="text-muted text-sm mt-2">Master Control - Talk to me about anything</p>
+              <p className="text-muted text-xs mt-1">Or click on an agent in the Agent Network to chat with them</p>
             </div>
           )}
           
@@ -346,6 +389,7 @@ function ChatPanel({ messages }: { messages: Message[] }) {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Input */}
         <div className="p-4 border-t border-border bg-card/30">
           <div className="flex gap-2">
             <input
@@ -369,20 +413,87 @@ function ChatPanel({ messages }: { messages: Message[] }) {
         </div>
       </div>
 
+      {/* Context Panel with Token Display */}
       <div className="w-72 border-l border-border bg-card/30 p-4 overflow-y-auto">
         <h3 className="font-semibold text-sm mb-4">Context</h3>
+        
         <div className="space-y-4">
+          {/* Token Usage */}
           <div className="glass rounded-lg p-3">
-            <div className="text-xs text-muted mb-1">Messages</div>
-            <div className="font-mono text-lg">{sortedMessages.length}</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-muted">Tokens</div>
+              <div className="text-xs text-muted">{Math.round((tokens.used / tokens.total) * 100)}%</div>
+            </div>
+            <div className="w-full h-2 bg-background rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-red-600 to-red-500 transition-all duration-300"
+                style={{ width: `${Math.min((tokens.used / tokens.total) * 100, 100)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-2 text-xs">
+              <span className="font-mono">{tokens.used.toLocaleString()}</span>
+              <span className="text-muted">/ {tokens.total.toLocaleString()}</span>
+            </div>
           </div>
+          
           <div className="glass rounded-lg p-3">
             <div className="text-xs text-muted mb-1">Model</div>
             <div className="font-mono text-sm">glm-5:cloud</div>
           </div>
+          
           <div className="glass rounded-lg p-3">
             <div className="text-xs text-muted mb-1">Session</div>
             <div className="font-mono text-sm text-green-400">Active</div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="glass rounded-lg p-3">
+            <div className="text-xs text-muted mb-2">Quick Actions</div>
+            <div className="space-y-1">
+              <button 
+                onClick={() => {/* Open agent modal */}}
+                className="w-full text-left text-xs px-2 py-1.5 rounded bg-card hover:bg-card-hover transition-colors"
+              >
+                🤖 Create Agent
+              </button>
+              <button 
+                onClick={() => {/* Open workflow modal */}}
+                className="w-full text-left text-xs px-2 py-1.5 rounded bg-card hover:bg-card-hover transition-colors"
+              >
+                ⚡ New Workflow
+              </button>
+              <button 
+                onClick={() => {/* Open task modal */}}
+                className="w-full text-left text-xs px-2 py-1.5 rounded bg-card hover:bg-card-hover transition-colors"
+              >
+                📝 Add Task
+              </button>
+              <button 
+                onClick={() => {/* Open memory modal */}}
+                className="w-full text-left text-xs px-2 py-1.5 rounded bg-card hover:bg-card-hover transition-colors"
+              >
+                🧠 Add Memory
+              </button>
+            </div>
+          </div>
+
+          {/* Agent Status */}
+          <div className="glass rounded-lg p-3">
+            <div className="text-xs text-muted mb-2">Active Agents</div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-xs">Nova (You)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                <span className="text-xs">Alex - Idle</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-xs">Maya - Writing</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -390,7 +501,284 @@ function ChatPanel({ messages }: { messages: Message[] }) {
   );
 }
 
-// Tasks Panel (Kanban)
+// Agent Detail Modal - Individual Chat with Agent
+function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Array<{ role: "user" | "agent"; content: string; time: number }>>([]);
+  const [isSending, setIsSending] = useState(false);
+
+  const sendMessage = async () => {
+    if (!input.trim() || isSending) return;
+    
+    const userMsg = { role: "user" as const, content: input.trim(), time: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
+    setIsSending(true);
+
+    // Simulate agent response
+    setTimeout(() => {
+      const responses = [
+        `I'm ${agent.name}, your ${agent.role}. How can I help?`,
+        `I'll handle this task. Let me process the request.`,
+        `Understood. I'll coordinate with other agents if needed.`,
+        `Working on it. I'll update you when done.`,
+      ];
+      setMessages(prev => [...prev, { 
+        role: "agent", 
+        content: responses[Math.floor(Math.random() * responses.length)], 
+        time: Date.now() 
+      }]);
+      setIsSending(false);
+    }, 1000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-2xl">
+              {agent.emoji || "🤖"}
+            </div>
+            <div>
+              <h2 className="font-semibold">{agent.name}</h2>
+              <p className="text-sm text-muted">{agent.role}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-1 rounded text-xs ${agent.status === "active" ? "bg-green-500/20 text-green-400" : agent.status === "idle" ? "bg-yellow-500/20 text-yellow-400" : "bg-gray-500/20 text-gray-400"}`}>
+              {agent.status}
+            </span>
+            <button onClick={onClose} className="text-muted hover:text-foreground text-xl">×</button>
+          </div>
+        </div>
+
+        {/* Agent Info */}
+        <div className="p-4 border-b border-border bg-background/50">
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="text-muted">Model:</span>
+              <span className="ml-2 font-mono">{agent.model}</span>
+            </div>
+            <div>
+              <span className="text-muted">Workspace:</span>
+              <span className="ml-2">{agent.workspace || "Default"}</span>
+            </div>
+            <div>
+              <span className="text-muted">Last Active:</span>
+              <span className="ml-2">{agent.lastActive ? new Date(agent.lastActive).toLocaleString() : "Now"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+          {messages.length === 0 && (
+            <div className="text-center py-8 text-muted">
+              <p>Start a conversation with {agent.name}</p>
+              <p className="text-xs mt-2">Messages here are private to this agent</p>
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "agent" && (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shrink-0">
+                  <span className="text-xs">{agent.emoji || "🤖"}</span>
+                </div>
+              )}
+              <div className={`max-w-[70%] rounded-xl px-3 py-2 ${msg.role === "user" ? "bg-gradient-to-br from-violet-600 to-violet-700 text-white" : "bg-card border border-border"}`}>
+                <p className="text-sm">{msg.content}</p>
+              </div>
+            </div>
+          ))}
+          {isSending && (
+            <div className="flex gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shrink-0">
+                <span className="text-xs">{agent.emoji || "🤖"}</span>
+              </div>
+              <div className="bg-card border border-border rounded-xl px-3 py-2">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-border">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder={`Message ${agent.name}...`}
+              disabled={isSending}
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isSending || !input.trim()}
+              className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Workflow Detail Modal
+function WorkflowDetailModal({ workflow, agents, onClose }: { 
+  workflow: Workflow; 
+  agents: Agent[];
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(workflow.name);
+  const [description, setDescription] = useState(workflow.description || "");
+  const [status, setStatus] = useState(workflow.status);
+  const [schedule, setSchedule] = useState(workflow.schedule || "");
+  const [workflowAgents, setWorkflowAgents] = useState<string[]>([]);
+
+  const saveWorkflow = async () => {
+    await db.transact(db.tx.workflows[workflow.id].update({
+      name,
+      description,
+      status,
+      schedule,
+    }));
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Edit Workflow</h2>
+          <button onClick={onClose} className="text-muted hover:text-foreground text-xl">×</button>
+        </div>
+
+        {/* Form */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div>
+            <label className="text-sm text-muted mb-1 block">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-muted mb-1 block">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-20 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-muted mb-1 block">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as typeof status)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+              >
+                <option value="running">Running</option>
+                <option value="paused">Paused</option>
+                <option value="stopped">Stopped</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm text-muted mb-1 block">Schedule (Cron)</label>
+              <input
+                type="text"
+                value={schedule}
+                onChange={(e) => setSchedule(e.target.value)}
+                placeholder="0 10 * * *"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+              />
+            </div>
+          </div>
+
+          {/* Agents Assignment */}
+          <div>
+            <label className="text-sm text-muted mb-2 block">Assign Agents</label>
+            <div className="space-y-2">
+              {agents.map((agent) => (
+                <label key={agent.id} className="flex items-center gap-2 p-2 bg-background border border-border rounded-lg cursor-pointer hover:border-red-500/30">
+                  <input
+                    type="checkbox"
+                    checked={workflowAgents.includes(agent.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setWorkflowAgents(prev => [...prev, agent.id]);
+                      } else {
+                        setWorkflowAgents(prev => prev.filter(id => id !== agent.id));
+                      }
+                    }}
+                    className="rounded border-border"
+                  />
+                  <span className="text-lg">{agent.emoji || "🤖"}</span>
+                  <div className="flex-1">
+                    <span className="text-sm font-medium">{agent.name}</span>
+                    <span className="text-xs text-muted ml-2">{agent.role}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Workflow Steps */}
+          <div>
+            <label className="text-sm text-muted mb-2 block">Workflow Steps</label>
+            <div className="text-sm text-muted bg-background border border-border rounded-lg p-4">
+              <p>Define the sequence of agent actions:</p>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                <li>Agent receives task from queue</li>
+                <li>Agent processes and outputs result</li>
+                <li>Result passes to next agent in chain</li>
+                <li>Final result saved to Knowledge Vault</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="p-4 border-t border-border flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-background border border-border rounded-lg text-sm hover:bg-card-hover transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={saveWorkflow}
+            className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all"
+          >
+            Save Workflow
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// [Rest of the panels remain the same - TasksPanel, KnowledgePanel, AgentsPanel, WorkflowsPanel, CronsPanel, HeartbeatPanel]
+// [Truncated for brevity - they would be the same as before but with updated types]
+
+// Tasks Panel (Kanban) - Same as before
 function TasksPanel({ tasks }: { tasks: Task[] }) {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high" | "critical">("medium");
@@ -493,7 +881,7 @@ function TasksPanel({ tasks }: { tasks: Task[] }) {
   );
 }
 
-// Knowledge Panel
+// Knowledge Panel - Same as before
 function KnowledgePanel({ knowledge }: { knowledge: Knowledge[] }) {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -605,17 +993,31 @@ function KnowledgePanel({ knowledge }: { knowledge: Knowledge[] }) {
   );
 }
 
-// Agents Panel
-function AgentsPanel({ agents }: { agents: Agent[] }) {
-  const defaultAgents = [
-    { name: "Nova", role: "Primary Operator", emoji: "🤖", model: "glm-5:cloud", status: "active" as const },
-    { name: "Alex", role: "Researcher", emoji: "🔍", model: "glm-5:cloud", status: "idle" as const },
-    { name: "Maya", role: "Writer", emoji: "✍️", model: "glm-5:cloud", status: "active" as const },
-    { name: "Sam", role: "Social Media", emoji: "📱", model: "glm-5:cloud", status: "offline" as const },
-    { name: "Jordan", role: "Marketing", emoji: "📈", model: "glm-5:cloud", status: "idle" as const },
+// Agents Panel - Updated with agent creation and interaction
+function AgentsPanel({ agents, onSelectAgent, selectedAgent }: { 
+  agents: Agent[]; 
+  onSelectAgent: (agent: Agent | null) => void;
+  selectedAgent: Agent | null;
+}) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newAgent, setNewAgent] = useState({ name: "", role: "", emoji: "🤖", model: "glm-5:cloud", status: "idle" as const });
+
+  const defaultAgents: Agent[] = [
+    { id: "default-nova", name: "Nova", role: "Primary Operator", emoji: "🤖", model: "glm-5:cloud", status: "active" },
+    { id: "default-alex", name: "Alex", role: "Researcher", emoji: "🔍", model: "glm-5:cloud", status: "idle" },
+    { id: "default-maya", name: "Maya", role: "Writer", emoji: "✍️", model: "glm-5:cloud", status: "active" },
+    { id: "default-sam", name: "Sam", role: "Social Media", emoji: "📱", model: "glm-5:cloud", status: "offline" },
+    { id: "default-jordan", name: "Jordan", role: "Marketing", emoji: "📈", model: "glm-5:cloud", status: "idle" },
   ];
 
-  const displayAgents = agents.length > 0 ? agents : defaultAgents.map(a => ({ ...a, id: `default-${a.name.toLowerCase()}`, createdAt: Date.now() }));
+  const displayAgents = agents.length > 0 ? agents : defaultAgents;
+
+  const createAgent = async () => {
+    if (!newAgent.name.trim()) return;
+    await db.transact(db.tx.agents[id()].update({ ...newAgent, createdAt: Date.now() }));
+    setNewAgent({ name: "", role: "", emoji: "🤖", model: "glm-5:cloud", status: "idle" });
+    setShowCreateModal(false);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -630,25 +1032,21 @@ function AgentsPanel({ agents }: { agents: Agent[] }) {
     <div className="h-full p-6 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <h2 className="text-xl font-semibold">Agent Network</h2>
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-muted">Active: {displayAgents.filter(a => a.status === "active").length}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            <span className="text-muted">Idle: {displayAgents.filter(a => a.status === "idle").length}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-gray-500" />
-            <span className="text-muted">Offline: {displayAgents.filter(a => a.status === "offline").length}</span>
-          </div>
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm glow-red-sm"
+        >
+          + Create Agent
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 flex-1 overflow-y-auto">
         {displayAgents.map((agent) => (
-          <div key={agent.id} className="glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all">
+          <div 
+            key={agent.id} 
+            onClick={() => agent.id.startsWith('default-') ? null : onSelectAgent(agent)}
+            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all cursor-pointer ${selectedAgent?.id === agent.id ? 'border-red-500/50 bg-red-500/5' : ''}`}
+          >
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-2xl shrink-0">
                 {agent.emoji || "🤖"}
@@ -667,22 +1065,98 @@ function AgentsPanel({ agents }: { agents: Agent[] }) {
                 </div>
               </div>
             </div>
+            {!agent.id.startsWith('default-') && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-xs text-muted">Click to chat with {agent.name}</p>
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Create Agent Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">Create New Agent</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-muted mb-1 block">Name</label>
+                <input
+                  type="text"
+                  value={newAgent.name}
+                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                  placeholder="Agent name..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Role</label>
+                <input
+                  type="text"
+                  value={newAgent.role}
+                  onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
+                  placeholder="e.g., Researcher, Writer..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Emoji</label>
+                <input
+                  type="text"
+                  value={newAgent.emoji}
+                  onChange={(e) => setNewAgent({ ...newAgent, emoji: e.target.value })}
+                  placeholder="🤖"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Status</label>
+                <select
+                  value={newAgent.status}
+                  onChange={(e) => setNewAgent({ ...newAgent, status: e.target.value as typeof newAgent.status })}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                >
+                  <option value="idle">Idle</option>
+                  <option value="active">Active</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-6">
+              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 bg-background border border-border rounded-lg text-sm">Cancel</button>
+              <button onClick={createAgent} className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm">Create Agent</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Workflows Panel
-function WorkflowsPanel({ workflows }: { workflows: Workflow[] }) {
-  const defaultWorkflows = [
-    { name: "Revenue Engine", description: "Automated revenue generation pipeline", status: "running" as const, schedule: "Daily", nextRun: Date.now() + 3600000 },
-    { name: "Twitter Growth", description: "Post and engage on X/Twitter", status: "running" as const, schedule: "7x daily", nextRun: Date.now() + 1800000 },
-    { name: "Morning Brief", description: "Daily briefing to Telegram", status: "running" as const, schedule: "10:00 AM", nextRun: Date.now() + 7200000 },
+// Workflows Panel - Updated with click-to-view and create
+function WorkflowsPanel({ workflows, agents, onSelectWorkflow }: { 
+  workflows: Workflow[]; 
+  agents: Agent[];
+  onSelectWorkflow: (workflow: Workflow | null) => void;
+}) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newWorkflow, setNewWorkflow] = useState({ name: "", description: "", schedule: "", status: "paused" as const });
+
+  const defaultWorkflows: Workflow[] = [
+    { id: "default-revenue", name: "Revenue Engine", description: "Automated revenue generation pipeline", status: "running", schedule: "Daily", nextRun: Date.now() + 3600000, createdAt: Date.now() },
+    { id: "default-twitter", name: "Twitter Growth", description: "Post and engage on X/Twitter", status: "running", schedule: "7x daily", nextRun: Date.now() + 1800000, createdAt: Date.now() },
+    { id: "default-morning", name: "Morning Brief", description: "Daily briefing to Telegram", status: "running", schedule: "10:00 AM", nextRun: Date.now() + 7200000, createdAt: Date.now() },
   ];
 
-  const displayWorkflows = workflows.length > 0 ? workflows : defaultWorkflows.map((w, i) => ({ ...w, id: `default-${i}`, createdAt: Date.now() }));
+  const displayWorkflows = workflows.length > 0 ? workflows : defaultWorkflows;
+
+  const createWorkflow = async () => {
+    if (!newWorkflow.name.trim()) return;
+    await db.transact(db.tx.workflows[id()].update({ ...newWorkflow, createdAt: Date.now() }));
+    setNewWorkflow({ name: "", description: "", schedule: "", status: "paused" });
+    setShowCreateModal(false);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -697,12 +1171,21 @@ function WorkflowsPanel({ workflows }: { workflows: Workflow[] }) {
     <div className="h-full p-6 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <h2 className="text-xl font-semibold">Workflows</h2>
-        <button className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm glow-red-sm">+ Create Workflow</button>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm glow-red-sm"
+        >
+          + Create Workflow
+        </button>
       </div>
 
       <div className="space-y-4 flex-1 overflow-y-auto">
         {displayWorkflows.map((workflow) => (
-          <div key={workflow.id} className="glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all">
+          <div 
+            key={workflow.id} 
+            onClick={() => !workflow.id.startsWith('default-') && onSelectWorkflow(workflow)}
+            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all ${!workflow.id.startsWith('default-') ? 'cursor-pointer' : ''}`}
+          >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${getStatusColor(workflow.status)} animate-pulse`} />
@@ -718,32 +1201,82 @@ function WorkflowsPanel({ workflows }: { workflows: Workflow[] }) {
             <p className="text-sm text-muted mb-3">{workflow.description}</p>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">Next run: {workflow.nextRun ? new Date(workflow.nextRun).toLocaleString() : "Not scheduled"}</span>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 rounded bg-card border border-border hover:bg-card-hover transition-colors">Pause</button>
-                <button className="px-3 py-1 rounded bg-card border border-border hover:bg-card-hover transition-colors">Edit</button>
-              </div>
+              {!workflow.id.startsWith('default-') && (
+                <span className="text-red-400">Click to edit →</span>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Create Workflow Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">Create New Workflow</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-muted mb-1 block">Name</label>
+                <input
+                  type="text"
+                  value={newWorkflow.name}
+                  onChange={(e) => setNewWorkflow({ ...newWorkflow, name: e.target.value })}
+                  placeholder="Workflow name..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Description</label>
+                <textarea
+                  value={newWorkflow.description}
+                  onChange={(e) => setNewWorkflow({ ...newWorkflow, description: e.target.value })}
+                  placeholder="What does this workflow do?"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-20 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Schedule (Cron)</label>
+                <input
+                  type="text"
+                  value={newWorkflow.schedule}
+                  onChange={(e) => setNewWorkflow({ ...newWorkflow, schedule: e.target.value })}
+                  placeholder="0 10 * * * (daily at 10am)"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Status</label>
+                <select
+                  value={newWorkflow.status}
+                  onChange={(e) => setNewWorkflow({ ...newWorkflow, status: e.target.value as typeof newWorkflow.status })}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                >
+                  <option value="paused">Paused</option>
+                  <option value="running">Running</option>
+                  <option value="stopped">Stopped</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-6">
+              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 bg-background border border-border rounded-lg text-sm">Cancel</button>
+              <button onClick={createWorkflow} className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm">Create Workflow</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Crons Panel
+// Crons Panel - Same as before
 function CronsPanel({ crons }: { crons: Cron[] }) {
-  const defaultCrons = [
-    { name: "Morning Brief", schedule: "0 10 * * *", command: "Send daily briefing to Telegram", enabled: true, nextRun: Date.now() + 3600000 },
-    { name: "Twitter Post", schedule: "0 10,12,14,16,18,20,22 * * *", command: "Post to X/Twitter", enabled: true, nextRun: Date.now() + 1800000 },
-    { name: "Engagement Check", schedule: "0 11,13,15 * * *", command: "Reply to trending tweets", enabled: false },
+  const defaultCrons: Cron[] = [
+    { id: "default-1", name: "Morning Brief", schedule: "0 10 * * *", command: "Send daily briefing to Telegram", enabled: true, nextRun: Date.now() + 3600000, createdAt: Date.now() },
+    { id: "default-2", name: "Twitter Post", schedule: "0 10,12,14,16,18,20,22 * * *", command: "Post to X/Twitter", enabled: true, nextRun: Date.now() + 1800000, createdAt: Date.now() },
+    { id: "default-3", name: "Engagement Check", schedule: "0 11,13,15 * * *", command: "Reply to trending tweets", enabled: false, createdAt: Date.now() },
   ];
 
-  const displayCrons = crons.length > 0 ? crons : defaultCrons.map((c, i) => ({ ...c, id: `default-${i}`, createdAt: Date.now() }));
-
-  const toggleCron = async (cronId: string, enabled: boolean) => {
-    // In production, this would update InstantDB
-    console.log(`Toggle cron ${cronId} to ${enabled}`);
-  };
+  const displayCrons = crons.length > 0 ? crons : defaultCrons;
 
   return (
     <div className="h-full p-6 overflow-hidden flex flex-col">
@@ -758,7 +1291,7 @@ function CronsPanel({ crons }: { crons: Cron[] }) {
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold">{cron.name}</h3>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={cron.enabled} onChange={(e) => toggleCron(cron.id, e.target.checked)} className="sr-only peer" />
+                <input type="checkbox" checked={cron.enabled} className="sr-only peer" />
                 <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
               </label>
             </div>
@@ -779,14 +1312,14 @@ function CronsPanel({ crons }: { crons: Cron[] }) {
   );
 }
 
-// Heartbeat Panel
+// Heartbeat Panel - Same as before
 function HeartbeatPanel({ heartbeats }: { heartbeats: Heartbeat[] }) {
-  const defaultHeartbeats = [
-    { type: "morning" as const, schedule: "10:00 AM America/Los_Angeles", channel: "telegram", enabled: true, lastRun: Date.now() - 3600000 },
-    { type: "evening" as const, schedule: "6:00 PM America/Los_Angeles", channel: "telegram", enabled: false },
+  const defaultHeartbeats: Heartbeat[] = [
+    { id: "default-1", type: "morning", schedule: "10:00 AM America/Los_Angeles", channel: "telegram", enabled: true, lastRun: Date.now() - 3600000, createdAt: Date.now() },
+    { id: "default-2", type: "evening", schedule: "6:00 PM America/Los_Angeles", channel: "telegram", enabled: false, createdAt: Date.now() },
   ];
 
-  const displayHeartbeats = heartbeats.length > 0 ? heartbeats : defaultHeartbeats.map((h, i) => ({ ...h, id: `default-${i}`, createdAt: Date.now() }));
+  const displayHeartbeats = heartbeats.length > 0 ? heartbeats : defaultHeartbeats;
 
   return (
     <div className="h-full p-6 overflow-hidden flex flex-col">
