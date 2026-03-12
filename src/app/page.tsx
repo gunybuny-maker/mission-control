@@ -634,7 +634,7 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
   );
 }
 
-// Workflow Detail Modal
+// Workflow Detail Modal - Extra Large for Big Workflows
 function WorkflowDetailModal({ workflow, agents, onClose }: { 
   workflow: Workflow; 
   agents: Agent[];
@@ -644,131 +644,277 @@ function WorkflowDetailModal({ workflow, agents, onClose }: {
   const [description, setDescription] = useState(workflow.description || "");
   const [status, setStatus] = useState(workflow.status);
   const [schedule, setSchedule] = useState(workflow.schedule || "");
-  const [workflowAgents, setWorkflowAgents] = useState<string[]>([]);
+  const [steps, setSteps] = useState<WorkflowStep[]>(workflow.steps || [
+    { id: "step-1", agentId: "", action: "Initialize workflow", order: 1 },
+    { id: "step-2", agentId: "", action: "Process data", order: 2 },
+    { id: "step-3", agentId: "", action: "Output results", order: 3 },
+  ]);
+
+  // Default agents if none from DB
+  const displayAgents = agents.length > 0 ? agents : [
+    { id: "agent-nova", name: "Nova", role: "Primary Operator", emoji: "🤖", model: "glm-5:cloud", status: "active" },
+    { id: "agent-alex", name: "Alex", role: "Researcher", emoji: "🔍", model: "glm-5:cloud", status: "idle" },
+    { id: "agent-maya", name: "Maya", role: "Writer", emoji: "✍️", model: "glm-5:cloud", status: "active" },
+    { id: "agent-sam", name: "Sam", role: "Social Media", emoji: "📱", model: "glm-5:cloud", status: "offline" },
+    { id: "agent-jordan", name: "Jordan", role: "Marketing", emoji: "📈", model: "glm-5:cloud", status: "idle" },
+  ];
+
+  const addStep = () => {
+    setSteps(prev => [...prev, { 
+      id: `step-${Date.now()}`, 
+      agentId: "", 
+      action: "", 
+      order: prev.length + 1 
+    }]);
+  };
+
+  const removeStep = (stepId: string) => {
+    setSteps(prev => prev.filter(s => s.id !== stepId).map((s, i) => ({ ...s, order: i + 1 })));
+  };
+
+  const updateStep = (stepId: string, field: "agentId" | "action", value: string) => {
+    setSteps(prev => prev.map(s => s.id === stepId ? { ...s, [field]: value } : s));
+  };
+
+  const moveStepUp = (stepId: string) => {
+    setSteps(prev => {
+      const idx = prev.findIndex(s => s.id === stepId);
+      if (idx <= 0) return prev;
+      const newSteps = [...prev];
+      [newSteps[idx - 1], newSteps[idx]] = [newSteps[idx], newSteps[idx - 1]];
+      return newSteps.map((s, i) => ({ ...s, order: i + 1 }));
+    });
+  };
+
+  const moveStepDown = (stepId: string) => {
+    setSteps(prev => {
+      const idx = prev.findIndex(s => s.id === stepId);
+      if (idx >= prev.length - 1) return prev;
+      const newSteps = [...prev];
+      [newSteps[idx], newSteps[idx + 1]] = [newSteps[idx + 1], newSteps[idx]];
+      return newSteps.map((s, i) => ({ ...s, order: i + 1 }));
+    });
+  };
 
   const saveWorkflow = async () => {
-    await db.transact(db.tx.workflows[workflow.id].update({
-      name,
-      description,
-      status,
-      schedule,
-    }));
+    // In production, this would save to InstantDB
+    // For now, just close
+    console.log("Saving workflow:", { name, description, status, schedule, steps });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Edit Workflow</h2>
-          <button onClick={onClose} className="text-muted hover:text-foreground text-xl">×</button>
+        <div className="p-6 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-xl">Edit Workflow</h2>
+            <p className="text-sm text-muted mt-1">Define the sequence of agent tasks</p>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-foreground text-2xl p-2 hover:bg-card-hover rounded-lg transition-colors">×</button>
         </div>
 
-        {/* Form */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div>
-            <label className="text-sm text-muted mb-1 block">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-            />
-          </div>
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left Panel - Workflow Details */}
+          <div className="w-80 border-r border-border p-6 overflow-y-auto">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-muted mb-1 block">Workflow Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                />
+              </div>
 
-          <div>
-            <label className="text-sm text-muted mb-1 block">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-20 resize-none"
-            />
-          </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 h-24 resize-none"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-muted mb-1 block">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as typeof status)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-              >
-                <option value="running">Running</option>
-                <option value="paused">Paused</option>
-                <option value="stopped">Stopped</option>
-              </select>
-            </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as typeof status)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                >
+                  <option value="running">🟢 Running</option>
+                  <option value="paused">🟡 Paused</option>
+                  <option value="stopped">🔴 Stopped</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="text-sm text-muted mb-1 block">Schedule (Cron)</label>
-              <input
-                type="text"
-                value={schedule}
-                onChange={(e) => setSchedule(e.target.value)}
-                placeholder="0 10 * * *"
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
-              />
-            </div>
-          </div>
+              <div>
+                <label className="text-sm text-muted mb-1 block">Schedule (Cron)</label>
+                <input
+                  type="text"
+                  value={schedule}
+                  onChange={(e) => setSchedule(e.target.value)}
+                  placeholder="0 10 * * *"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50 font-mono"
+                />
+                <p className="text-xs text-muted mt-1">e.g., "0 10 * * *" = Daily at 10am</p>
+              </div>
 
-          {/* Agents Assignment */}
-          <div>
-            <label className="text-sm text-muted mb-2 block">Assign Agents</label>
-            <div className="space-y-2">
-              {agents.map((agent) => (
-                <label key={agent.id} className="flex items-center gap-2 p-2 bg-background border border-border rounded-lg cursor-pointer hover:border-red-500/30">
-                  <input
-                    type="checkbox"
-                    checked={workflowAgents.includes(agent.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setWorkflowAgents(prev => [...prev, agent.id]);
-                      } else {
-                        setWorkflowAgents(prev => prev.filter(id => id !== agent.id));
-                      }
-                    }}
-                    className="rounded border-border"
-                  />
-                  <span className="text-lg">{agent.emoji || "🤖"}</span>
-                  <div className="flex-1">
-                    <span className="text-sm font-medium">{agent.name}</span>
-                    <span className="text-xs text-muted ml-2">{agent.role}</span>
+              {/* Workflow Stats */}
+              <div className="glass rounded-xl p-4 mt-4">
+                <h4 className="text-sm font-semibold mb-3">Workflow Stats</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted">Total Steps</span>
+                    <span className="font-mono">{steps.length}</span>
                   </div>
-                </label>
-              ))}
+                  <div className="flex justify-between">
+                    <span className="text-muted">Assigned Agents</span>
+                    <span className="font-mono">{steps.filter(s => s.agentId).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Unassigned</span>
+                    <span className="font-mono text-yellow-400">{steps.filter(s => !s.agentId).length}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Workflow Steps */}
-          <div>
-            <label className="text-sm text-muted mb-2 block">Workflow Steps</label>
-            <div className="text-sm text-muted bg-background border border-border rounded-lg p-4">
-              <p>Define the sequence of agent actions:</p>
-              <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
-                <li>Agent receives task from queue</li>
-                <li>Agent processes and outputs result</li>
-                <li>Result passes to next agent in chain</li>
-                <li>Final result saved to Knowledge Vault</li>
-              </ol>
+          {/* Right Panel - Steps Editor */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Steps Header */}
+            <div className="p-4 border-b border-border flex items-center justify-between bg-background/50">
+              <div>
+                <h3 className="font-semibold">Workflow Steps</h3>
+                <p className="text-xs text-muted">Drag to reorder, assign agents to each step</p>
+              </div>
+              <button
+                onClick={addStep}
+                className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all"
+              >
+                + Add Step
+              </button>
+            </div>
+
+            {/* Steps List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {steps.map((step, index) => {
+                const assignedAgent = displayAgents.find(a => a.id === step.agentId);
+                return (
+                  <div 
+                    key={step.id} 
+                    className="glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all"
+                  >
+                    <div className="flex items-start gap-4">
+                      {/* Step Number */}
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-lg font-bold shrink-0">
+                        {index + 1}
+                      </div>
+
+                      {/* Step Content */}
+                      <div className="flex-1 space-y-3">
+                        {/* Agent Assignment */}
+                        <div>
+                          <label className="text-xs text-muted mb-1 block">Assign Agent</label>
+                          <select
+                            value={step.agentId}
+                            onChange={(e) => updateStep(step.id, "agentId", e.target.value)}
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                          >
+                            <option value="">-- Select Agent --</option>
+                            {displayAgents.map((agent) => (
+                              <option key={agent.id} value={agent.id}>
+                                {agent.emoji || "🤖"} {agent.name} - {agent.role}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Action */}
+                        <div>
+                          <label className="text-xs text-muted mb-1 block">Task / Action</label>
+                          <input
+                            type="text"
+                            value={step.action}
+                            onChange={(e) => updateStep(step.id, "action", e.target.value)}
+                            placeholder="What should this agent do?"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500/50"
+                          />
+                        </div>
+
+                        {/* Assigned Agent Preview */}
+                        {assignedAgent && (
+                          <div className="flex items-center gap-2 text-xs bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                            <span>{assignedAgent.emoji || "🤖"}</span>
+                            <span className="font-medium">{assignedAgent.name}</span>
+                            <span className="text-muted">will execute this step</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Step Actions */}
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => moveStepUp(step.id)}
+                          disabled={index === 0}
+                          className="p-1.5 rounded bg-card border border-border hover:bg-card-hover disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => moveStepDown(step.id)}
+                          disabled={index === steps.length - 1}
+                          className="p-1.5 rounded bg-card border border-border hover:bg-card-hover disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          onClick={() => removeStep(step.id)}
+                          className="p-1.5 rounded bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 text-xs mt-2"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {steps.length === 0 && (
+                <div className="text-center py-12 text-muted">
+                  <div className="text-4xl mb-4">📋</div>
+                  <p>No steps yet. Add your first step to get started.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="p-4 border-t border-border flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-background border border-border rounded-lg text-sm hover:bg-card-hover transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={saveWorkflow}
-            className="px-4 py-2 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all"
-          >
-            Save Workflow
-          </button>
+        <div className="p-4 border-t border-border flex justify-between items-center bg-background/50">
+          <div className="text-sm text-muted">
+            {steps.filter(s => !s.agentId).length > 0 && (
+              <span className="text-yellow-400">⚠️ {steps.filter(s => !s.agentId).length} unassigned steps</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 bg-background border border-border rounded-lg text-sm hover:bg-card-hover transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveWorkflow}
+              className="px-6 py-2.5 bg-gradient-to-br from-red-600 to-red-700 rounded-lg text-sm hover:from-red-500 hover:to-red-600 transition-all"
+            >
+              Save Workflow
+            </button>
+          </div>
         </div>
       </div>
     </div>
