@@ -13,9 +13,25 @@ const _schema = i.schema({
       imageURL: i.string().optional(),
       type: i.string().optional(),
     }),
-    todos: i.entity({
-      text: i.string(),
-      done: i.boolean(),
+    // Messages for chat
+    messages: i.entity({
+      role: i.string(), // "user" | "assistant"
+      content: i.string(),
+      createdAt: i.number(),
+    }),
+    // Tasks for task board
+    tasks: i.entity({
+      title: i.string(),
+      status: i.string(), // "inbox" | "todo" | "in_progress" | "done"
+      priority: i.string(), // "low" | "medium" | "high" | "critical"
+      createdAt: i.number(),
+    }),
+    // Knowledge/memory entries
+    knowledge: i.entity({
+      category: i.string(),
+      content: i.string(),
+      importance: i.string(),
+      source: i.string(),
       createdAt: i.number(),
     }),
   },
@@ -36,6 +52,9 @@ const _schema = i.schema({
   },
   rooms: {
     todos: {
+      presence: i.entity({}),
+    },
+    chat: {
       presence: i.entity({}),
     },
   },
