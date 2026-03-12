@@ -131,12 +131,12 @@ export default function MissionControl() {
       </main>
       
       {/* Agent Detail Modal */}
-      {selectedAgent && !selectedAgent.id.startsWith('default-') && (
+      {selectedAgent && (
         <AgentDetailModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
       )}
       
       {/* Workflow Detail Modal */}
-      {selectedWorkflow && !selectedWorkflow.id.startsWith('default-') && (
+      {selectedWorkflow && (
         <WorkflowDetailModal workflow={selectedWorkflow} agents={(data?.agents || []) as Agent[]} onClose={() => setSelectedWorkflow(null)} />
       )}
     </div>
@@ -1270,8 +1270,8 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
         {displayAgents.map((agent) => (
           <div 
             key={agent.id} 
-            onClick={() => !agent.id.startsWith('default-') && onSelectAgent(agent)}
-            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all cursor-pointer ${selectedAgent?.id === agent.id ? 'border-red-500/50 bg-red-500/5' : ''}`}
+            onClick={() => onSelectAgent(agent)}
+            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all cursor-pointer ${selectedAgent?.id === agent.id ? 'border-red-500/50 bg-red-500/5' : ''} ${agent.id.startsWith('default-') ? 'opacity-80' : ''}`}
           >
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-2xl shrink-0">
@@ -1530,8 +1530,8 @@ function WorkflowsPanel({ workflows, agents, onSelectWorkflow }: {
         {displayWorkflows.map((workflow) => (
           <div 
             key={workflow.id} 
-            onClick={() => !workflow.id.startsWith('default-') && onSelectWorkflow(workflow)}
-            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all ${!workflow.id.startsWith('default-') ? 'cursor-pointer' : ''}`}
+            onClick={() => onSelectWorkflow(workflow)}
+            className={`glass rounded-xl p-4 border border-border hover:border-red-500/30 transition-all cursor-pointer ${workflow.id.startsWith('default-') ? 'opacity-80' : ''}`}
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -1548,9 +1548,7 @@ function WorkflowsPanel({ workflows, agents, onSelectWorkflow }: {
             <p className="text-sm text-muted mb-3">{workflow.description}</p>
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">Next run: {workflow.nextRun ? new Date(workflow.nextRun).toLocaleString() : "Not scheduled"}</span>
-              {!workflow.id.startsWith('default-') && (
-                <span className="text-red-400">Click to edit →</span>
-              )}
+              <span className="text-red-400">{workflow.id.startsWith('default-') ? 'Click to view' : 'Click to edit →'}</span>
             </div>
           </div>
         ))}
