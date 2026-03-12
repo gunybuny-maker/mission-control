@@ -160,7 +160,7 @@ function LoadingScreen() {
 
 // Sidebar - Desktop version
 function Sidebar({ activeTab, setActiveTab, collapsed, setCollapsed }: { 
-  activeTab: "chat" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat";
+  activeTab: "chat" | "office" | "tasks" | "knowledge" | "agents" | "workflows" | "crons" | "heartbeat";
   setActiveTab: (tab: typeof activeTab) => void;
   collapsed: boolean;
   setCollapsed: (c: boolean) => void;
