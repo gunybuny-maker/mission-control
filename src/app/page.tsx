@@ -328,6 +328,7 @@ function ChatPanel({ messages, selectedAgent, setSelectedAgent }: {
     setTokens(prev => ({ ...prev, used: prev.used + tokensUsed }));
 
     try {
+      // Save user message to InstantDB
       await db.transact(
         db.tx.messages[id()].update({
           role: "user",
@@ -336,27 +337,31 @@ function ChatPanel({ messages, selectedAgent, setSelectedAgent }: {
         })
       );
 
-      // Simulate AI response
-      setTimeout(async () => {
-        const responses = [
-          "I understand. Let me process that and get back to you.",
-          "Working on it. I'll coordinate with the agents if needed.",
-          "Got it. I'm analyzing the situation and will provide recommendations.",
-          "Acknowledged. I'll track this in the knowledge vault.",
-          "I've noted this. Would you like me to create a task or workflow for this?",
-        ];
-        
-        await db.transact(
-          db.tx.messages[id()].update({
-            role: "assistant",
-            content: responses[Math.floor(Math.random() * responses.length)],
-            createdAt: Date.now(),
-          })
-        );
-        
-        setTokens(prev => ({ ...prev, used: prev.used + Math.floor(Math.random() * 100) + 50 }));
-        setIsSending(false);
-      }, 800);
+      // Call our API route which connects to OpenClaw Gateway
+      const agentName = selectedAgent?.name || 'Nova';
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageText,
+          agentId: selectedAgent?.id || 'nova',
+          conversationId: 'mission-control',
+        }),
+      });
+
+      const data = await response.json();
+      
+      // Save AI response to InstantDB
+      await db.transact(
+        db.tx.messages[id()].update({
+          role: "assistant",
+          content: data.response || `[${agentName}] Connection established. How can I help?`,
+          createdAt: Date.now(),
+        })
+      );
+
+      setTokens(prev => ({ ...prev, used: prev.used + Math.floor(Math.random() * 100) + 50 }));
+      setIsSending(false);
     } catch (error) {
       console.error("Error sending message:", error);
       setIsSending(false);
@@ -553,21 +558,36 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent; onClose: () => voi
     setInput("");
     setIsSending(true);
 
-    // Simulate agent response
-    setTimeout(() => {
-      const responses = [
-        `I'm ${agent.name}, your ${agent.role}. How can I help?`,
-        `I'll handle this task. Let me process the request.`,
-        `Understood. I'll coordinate with other agents if needed.`,
-        `Working on it. I'll update you when done.`,
-      ];
+    try {
+      // Call API to route to specific agent
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: input.trim(),
+          agentId: agent.id,
+          agentName: agent.name,
+          conversationId: `agent-${agent.id}`,
+        }),
+      });
+
+      const data = await response.json();
+      
       setMessages(prev => [...prev, { 
         role: "agent", 
-        content: responses[Math.floor(Math.random() * responses.length)], 
+        content: data.response || `${agent.name}: Ready to assist.`, 
         time: Date.now() 
       }]);
       setIsSending(false);
-    }, 1000);
+    } catch (error) {
+      // Fallback response
+      setMessages(prev => [...prev, { 
+        role: "agent", 
+        content: `${agent.name}: I'm your ${agent.role}. Connect to Gateway for real-time responses.`, 
+        time: Date.now() 
+      }]);
+      setIsSending(false);
+    }
   };
 
   return (
