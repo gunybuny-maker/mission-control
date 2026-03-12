@@ -119,14 +119,14 @@ export default function MissionControl() {
         <Header />
         
         <div className="h-[calc(100vh-4rem)] overflow-hidden md:pb-0 pb-16">
-          {activeTab === "chat" && <ChatPanel messages={data?.messages || []} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />}
-          {activeTab === "office" && <OfficeSpace agents={data?.agents || []} />}
-          {activeTab === "tasks" && <TasksPanel tasks={data?.tasks || []} />}
-          {activeTab === "knowledge" && <KnowledgePanel knowledge={data?.knowledge || []} />}
-          {activeTab === "agents" && <AgentsPanel agents={data?.agents || []} onSelectAgent={setSelectedAgent} selectedAgent={selectedAgent} />}
-          {activeTab === "workflows" && <WorkflowsPanel workflows={data?.workflows || []} agents={data?.agents || []} onSelectWorkflow={setSelectedWorkflow} />}
-          {activeTab === "crons" && <CronsPanel crons={data?.crons || []} />}
-          {activeTab === "heartbeat" && <HeartbeatPanel heartbeats={data?.heartbeats || []} />}
+          {activeTab === "chat" && <ChatPanel messages={(data?.messages || []) as Message[]} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />}
+          {activeTab === "office" && <OfficeSpace agents={(data?.agents || []) as Agent[]} />}
+          {activeTab === "tasks" && <TasksPanel tasks={(data?.tasks || []) as Task[]} />}
+          {activeTab === "knowledge" && <KnowledgePanel knowledge={(data?.knowledge || []) as Knowledge[]} />}
+          {activeTab === "agents" && <AgentsPanel agents={(data?.agents || []) as Agent[]} onSelectAgent={setSelectedAgent} selectedAgent={selectedAgent} />}
+          {activeTab === "workflows" && <WorkflowsPanel workflows={(data?.workflows || []) as Workflow[]} agents={(data?.agents || []) as Agent[]} onSelectWorkflow={setSelectedWorkflow} />}
+          {activeTab === "crons" && <CronsPanel crons={(data?.crons || []) as Cron[]} />}
+          {activeTab === "heartbeat" && <HeartbeatPanel heartbeats={(data?.heartbeats || []) as Heartbeat[]} />}
         </div>
       </main>
       
@@ -137,7 +137,7 @@ export default function MissionControl() {
       
       {/* Workflow Detail Modal */}
       {selectedWorkflow && !selectedWorkflow.id.startsWith('default-') && (
-        <WorkflowDetailModal workflow={selectedWorkflow} agents={data?.agents || []} onClose={() => setSelectedWorkflow(null)} />
+        <WorkflowDetailModal workflow={selectedWorkflow} agents={(data?.agents || []) as Agent[]} onClose={() => setSelectedWorkflow(null)} />
       )}
     </div>
   );
@@ -1184,12 +1184,21 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
   selectedAgent: Agent | null;
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newAgent, setNewAgent] = useState({ 
+  const [newAgent, setNewAgent] = useState<{ 
+    name: string; 
+    role: string; 
+    emoji: string; 
+    model: string; 
+    status: "active" | "idle" | "offline";
+    personality: string;
+    mission: string;
+    workspace: string;
+  }>({ 
     name: "", 
     role: "", 
     emoji: "🤖", 
     model: "glm-5:cloud", 
-    status: "idle" as const,
+    status: "idle",
     personality: "",
     mission: "",
     workspace: ""
@@ -1217,7 +1226,6 @@ function AgentsPanel({ agents, onSelectAgent, selectedAgent }: {
       status: newAgent.status,
       workspace: newAgent.workspace || `/agents/${newAgent.name.toLowerCase()}`,
       // Personality and mission would be stored in the agent's SOUL.md file
-      createdAt: Date.now()
     }));
     
     // In production, this would also create:
